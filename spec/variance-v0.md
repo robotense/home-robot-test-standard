@@ -869,7 +869,7 @@ Items 1 to 8 are settled for v0: each states the question and the rule v0 adopts
 
 ## 12. References
 
-All were accessed on 2026-11-22.
+All were accessed on 2026-11-22, except where a later fetch date is given.
 
 | Key | Source |
 |---|---|
@@ -884,9 +884,12 @@ All were accessed on 2026-11-22.
 | Dobb-E | Shafiullah et al., [2311.16098v1](https://arxiv.org/html/2311.16098), 2023-11-27 |
 | Gao24 | Gao et al., [2403.05110v2](https://arxiv.org/html/2403.05110v2), RSS 2024 |
 | GemBench | Garcia et al., [2410.01345v2](https://arxiv.org/html/2410.01345v2), ICRA 2025 |
+| IEC 62849 | IEC 62849:2025 Ed. 2.0, *Performance evaluation methods of robots for household and similar use*, 2025-11-24, [IEC record](https://webstore.iec.ch/en/publication/68511), [preview](https://assets.vde-verlag.de/iec-normen/preview-pdf/info_iec62849%7Bed2.0%7Den.pdf), fetched 2026-11-26. Scope: indoor, floor-supported wheeled or wheel-track robots; surface-cleaning robots excluded. Related fixed-condition test methods: §4.2 operating, atmospheric and lighting conditions, §6 mobility test beds (threshold, transition, step, ramp, cable), §7.4 lighting effects, Annex A recommended multi-room test room |
 | IEC 62885-7 | IEC/ASTM 62885-7:2020, [preview](https://cdn.standards.iteh.ai/samples/23200/e7fcfbd1a41642c0ae263cbbba487db0/IEC-ASTM-62885-7-2020.pdf) |
 | IES18 | IES LD+A home-lighting pilot, July 2018, [DOE-hosted PDF](https://www.energy.gov/sites/prod/files/2018/07/f53/Home%20Nighttime%20Light%20Exposures.pdf) |
 | ISO 13482 | ISO 13482:2014 contents, [DIN preview](https://www.din.de/de/mitwirken/normenausschuesse/nam/veroeffentlichungen/wdc-beuth:din21:201686627/toc-2100451/download) |
+| ISO 18646-2 | ISO 18646-2:2024, *Robotics — Performance criteria and related test methods for service robots — Part 2: Navigation*, [ISO record](https://committee.iso.org/standard/82643.html), contents in [DIN preview](https://www.din.de/de/mitwirken/normenausschuesse/nam/veroeffentlichungen/wdc-beuth:din21:377398622/toc-3523447/download): §4.2 environmental conditions, §4.3 travel-surface conditions, obstacle detection and avoidance, narrow passage; indoor environments, with outdoor use in informative Annex A. Test conditions to control and report, not a classification |
+| ISO 18646-3 | ISO 18646-3:2021, *Robotics — Performance criteria and related test methods for service robots — Part 3: Manipulation* (grasp size, grasp strength, grasp slip resistance, hinged and sliding doors; indoor), [ISO record](https://committee.iso.org/standard/73591.html), fetched 2026-11-26 |
 | ISO 34503 | ISO 34503:2023 contents, [DIN preview](https://www.din.de/de/mitwirken/normenausschuesse/naautomobil/veroeffentlichungen/wdc-beuth:din21:371879457/toc-3487472/download) |
 | ISO 34504 | ISO 34504:2024 contents, [DIN preview](https://www.din.de/de/mitwirken/normenausschuesse/naautomobil/veroeffentlichungen/wdc-beuth:din21:377870767/toc-3528036/download) |
 | LIBERO-Plus | Fei et al., [2510.13626v3](https://arxiv.org/html/2510.13626v3), 2025-12-26 |
