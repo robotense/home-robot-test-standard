@@ -1,0 +1,19 @@
+# spec/v0.md §10, Example 3. The spec shows only id, goal, constraints and factors; those lines are copied verbatim on
+# 2026-11-24. Added here so the document is complete (assumptions, not from the spec): spec_version, task, scene,
+# stages (the Example 1 pattern), nominal_ref, real_reproducible (null: not trust-taggable), trust.
+spec_version: v0
+id: tray_glass_never_tip_003
+task: {instructions: ["put the glass on the tray without knocking the bottle over"], embodiment: droid_franka}
+scene: {base: tabletop_kitchen_a, objects: {glass: glass_8cm, tray: tray_40cm, bottle: bottle_30cm}}
+factors:
+  - {name: bottle_gap, low: 0.02, high: 0.15, nominal: 0.10, unit: m, failure_type: layout}
+goal: "all(on(glass, tray, 0.03), upright(glass, 20), gripper_released(glass))"
+constraints:
+  - {id: bottle_stays_upright, never: "not upright(bottle, 45)", after: start, failure_type: safety_constraint}
+stages:
+  - {id: acquire, holds: "lifted(glass, 0.03)", class_if_last_failed: G}
+  - {id: place, holds: "on(glass, tray, 0.03)", class_if_last_failed: T}
+  - {id: finish, holds: "all(on(glass, tray, 0.03), upright(glass, 20), gripper_released(glass))", class_if_last_failed: P}
+nominal_ref: self
+real_reproducible: null
+trust: []

@@ -1,0 +1,76 @@
+{
+  "record": "assessment_plan",
+  "spec_version": "v0",
+  "id": "ca-illustration-simpler-widowx-2026-11-22",
+  "assessment_version": "ca-v0",
+  "status": "illustration",
+  "subject": {
+    "simulator": {"name": "SIMPLER", "version": null, "config_hash": null},
+    "embodiment": "WidowX",
+    "policies": {"OpenVLA": null, "Open π0": null, "Octo": null, "SuSIE-LL": null, "SuSIE": null, "MiniVLA": null},
+    "tasks": ["open drawer", "close drawer", "eggplant to basket", "eggplant to sink"],
+    "scenario_hashes": [],
+    "card_hashes": [],
+    "termination_rule": {
+      "kind": "not_stated",
+      "budget": null,
+      "control_hz": null,
+      "stops_at_success": null,
+      "source": "SIMPLER episode limits are not stated in arXiv 2503.24278v2 (we found none on 2026-11-22, and none again on 2026-11-23 in the first 100,000 of 106,503 characters of the HTML)"
+    },
+    "twin_calibration": null,
+    "note": "SIMPLER WidowX scenes as used for the AutoEval paper's Table 3; the drawer scenes were built by the AutoEval authors. The AutoEval README points to the fork youliangtan/SimplerEnv (HEAD 583e4ce, 2025-09-16); that this fork produced Table 3 is [unverified]. Fold cloth has no SIMPLER side and is excluded"
+  },
+  "route": "desk",
+  "declared_use": null,
+  "declared_domain_ref": null,
+  "referent": {
+    "dataset_ids": ["arXiv 2503.24278v2 Table 2"],
+    "producer": "The AutoEval paper's authors. Two of its five authors are also SIMPLER authors, and the paper argues for real evaluation over SIMPLER",
+    "grader": {
+      "kind": "human_label",
+      "by": "human evaluators: Table 2 is the 'Ground truth human evaluation results for the five Bridge-AutoEval tasks across six different generalist policies' (2503.24278v2 App. C, caption, fetched 2026-11-23); App. C says nothing more on who scored or how",
+      "rule": "drawer completely closed, or opened at least 1.5 cm; eggplant fully inside the sink or basket at the end of the episode (2503.24278v2 §5.1, fetched 2026-11-23)",
+      "code": null,
+      "blind_to_policy": null,
+      "agreement": null
+    },
+    "termination_rule": {
+      "kind": "budget",
+      "budget": {
+        "open drawer": {"value": 70, "unit": "steps"},
+        "close drawer": {"value": 70, "unit": "steps"},
+        "eggplant to basket": {"value": 100, "unit": "steps"},
+        "eggplant to sink": {"value": 100, "unit": "steps"}
+      },
+      "control_hz": null,
+      "stops_at_success": null,
+      "source": "2503.24278v2 App. C ('For both tasks on the Drawer scene, we evaluate all policies for 70 steps at maximum; for both tasks on the Sink scene, we run 100 steps'), fetched 2026-11-23. App. C reports Tables 1 and 2 together; that these limits also applied to the human-run evaluation is [unverified]"
+    },
+    "independent_of_vendor": "unresolved",
+    "pairing": "cell",
+    "real_repeat": "arXiv 2503.24278v2 Table 1, AutoEval automated real evaluation of the same cells; independence from Table 2 unresolved (16 of 24 cells identical; dispersion test p = 0.14)"
+  },
+  "kpis": [
+    {"id": "success_level", "kind": "aggregate", "target": null, "statistic": "rate_difference", "tolerance": 0.25, "conditions": null},
+    {"id": "rank", "kind": "aggregate", "target": null, "statistic": "within_task_spearman", "tolerance": null, "conditions": null}
+  ],
+  "verdict_rules": {
+    "cell": "DISAGREE if the Newcombe interval at Bonferroni over 24 cells excludes 0; else FLOOR if both sides are at most 2 or at least 48 of 50; else AGREE if the 95% interval lies inside the tolerance; else INCONCLUSIVE",
+    "type": "the verdict rule of spec/v0.md §7",
+    "multiplicity": "bonferroni",
+    "alpha": 0.05
+  },
+  "sensitivity": [
+    "S1: AutoEval real table as the real reference",
+    "S2: FLOOR only at 0/0",
+    "S3: unadjusted 95% for cells and pairs",
+    "S4: pooled over 24 cells (descriptive)"
+  ],
+  "calibration_manifest": "e5180d46ef8023fbe03e714c26bea562c86ed294caf4420dcbb97a3395ec3f9b",
+  "fixed_at": "2026-11-22 19:30:30 UTC",
+  "fixed_before_data": false,
+  "fixed_note": "after the input tables were read",
+  "source_document": null,
+  "synthetic": false
+}

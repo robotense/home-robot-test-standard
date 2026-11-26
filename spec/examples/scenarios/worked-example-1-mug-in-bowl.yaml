@@ -1,0 +1,19 @@
+# spec/v0.md §10, Example 1, copied verbatim on 2026-11-24. Edit the spec, then this copy.
+spec_version: v0
+id: kitchen_mug_in_bowl_001
+task: {instructions: ["put the mug in the bowl", "place the mug into the bowl"], embodiment: droid_franka}
+scene: {base: tabletop_kitchen_a, objects: {mug: ycb_025_mug, bowl: bowl_16cm, table: table_a}}
+factors:
+  - {name: obj_x, low: 0.38, high: 0.62, nominal: 0.50, unit: m, failure_type: layout}
+  - {name: friction_scale, low: 0.7, high: 1.3, nominal: 1.0, failure_type: contact}
+  - {name: light_lux, low: 100, high: 1000, nominal: 500, unit: lux, failure_type: visual}
+  - {name: instruction_variant, low: 0, high: 1, nominal: 0, kind: int, failure_type: instruction}
+goal: "all(inside(mug, bowl, 0.07), upright(mug, 30), gripper_released(mug))"
+constraints: []
+stages:
+  - {id: acquire, holds: "lifted(mug, 0.03)", class_if_last_failed: G}
+  - {id: transport, holds: "inside(mug, bowl, 0.07)", class_if_last_failed: T}
+  - {id: finish, holds: "all(inside(mug, bowl, 0.07), upright(mug, 30), gripper_released(mug))", class_if_last_failed: P}
+nominal_ref: self
+real_reproducible: {objects: {mug: "YCB 025_mug"}, frame: robot_base, placements_from_factors: true, lighting: {unit: lux, measured_at: workspace_centre}}
+trust: []

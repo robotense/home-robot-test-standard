@@ -1,0 +1,41 @@
+# Our failure-search pilot's can_on_plate task as a spec v0 grammar document (2026-11-24). The pilot generates each
+# scenario from its factor values and stores no document (spec/v0.md §8.2); this file is that document. Factors and
+# instructions are the pilot's own. The goal and stages use the §3 grammar, so they differ from the pilot checker
+# (failsearch_v0), whose tolerances are its own (§8.2):
+# - placement: the pilot requires the can's centre within 7 cm (xy) of the plate centre, which is 4 cm inside the rim; here on(can, plate, 0.03), the §3 default;
+# - upright: 25 degrees, the pilot checker's tilt limit (§3 default 30);
+# - lift: 5 cm, the pilot checker's lift height (Example 1 uses 3 cm);
+# - the pilot also requires the can at rest for 0.5 s (speed <= 0.03 m/s); the grammar has no rest predicate;
+# - the pilot's constraint "no distractor displaced by more than 5 cm" is not expressible: the grammar has no
+#   displacement predicate, and the distractors (0 to 6, from n_distractors) are not named objects.
+spec_version: v0
+id: pilot/can_on_plate_grammar_v0
+task: {instructions: ["move the can onto the plate", "put the can on the plate", "move the tin onto the plate", "place the can on the plate", "put the soda onto the plate", "put the drink on the plate"], embodiment: franka_emika_panda}
+scene: {base: "failsearch tabletop, generated from the factor values", objects: {can: "pilot primitive can: cylinder r 0.030 m, h 0.100 m", plate: "pilot primitive plate: disc r 0.11 m", table: "pilot table"}, reference_path: null}
+factors:
+  - {name: obj_x, low: 0.38, high: 0.62, nominal: 0.5, kind: float, unit: m, failure_type: layout}
+  - {name: obj_y, low: -0.25, high: 0.25, nominal: 0.0, kind: float, unit: m, failure_type: layout}
+  - {name: obj_yaw, low: -3.141592653589793, high: 3.141592653589793, nominal: 0.0, kind: float, unit: rad, failure_type: layout}
+  - {name: recept_x, low: 0.38, high: 0.62, nominal: 0.5, kind: float, unit: m, failure_type: layout}
+  - {name: recept_y, low: -0.25, high: 0.25, nominal: 0.0, kind: float, unit: m, failure_type: layout}
+  - {name: n_distractors, low: 0, high: 6, nominal: 0, kind: int, failure_type: layout}
+  - {name: distractor_gap, low: 0.02, high: 0.2, nominal: 0.1, kind: float, unit: m, failure_type: layout}
+  - {name: distractor_dir, low: -3.141592653589793, high: 3.141592653589793, nominal: 0.0, kind: float, unit: rad, failure_type: layout}
+  - {name: obj_size_scale, low: 0.85, high: 1.15, nominal: 1.0, kind: float, failure_type: object_identity}
+  - {name: mass_scale, low: 0.7, high: 1.3, nominal: 1.0, kind: float, failure_type: contact}
+  - {name: friction_scale, low: 0.7, high: 1.3, nominal: 1.0, kind: float, failure_type: contact}
+  - {name: light_lux, low: 100.0, high: 1000.0, nominal: 500.0, kind: float, unit: lux, failure_type: visual}
+  - {name: light_kelvin, low: 2700.0, high: 6500.0, nominal: 4500.0, kind: float, unit: K, failure_type: visual, policy_sensitive: false}
+  - {name: cam_dx, low: -0.02, high: 0.02, nominal: 0.0, kind: float, unit: m, failure_type: visual}
+  - {name: cam_dy, low: -0.02, high: 0.02, nominal: 0.0, kind: float, unit: m, failure_type: visual}
+  - {name: cam_yaw_deg, low: -3.0, high: 3.0, nominal: 0.0, kind: float, unit: deg, failure_type: visual}
+  - {name: instruction_variant, low: 0, high: 5, nominal: 0, kind: int, failure_type: instruction}
+goal: "all(on(can, plate, 0.03), upright(can, 25), gripper_released(can))"
+constraints: []
+stages:
+  - {id: acquire, holds: "lifted(can, 0.05)", class_if_last_failed: G}
+  - {id: place, holds: "on(can, plate, 0.03)", class_if_last_failed: T}
+  - {id: finish, holds: "all(on(can, plate, 0.03), upright(can, 25), gripper_released(can))", class_if_last_failed: P}
+nominal_ref: self
+real_reproducible: null   # primitive objects: not trust-taggable (§6, §8.2)
+trust: []

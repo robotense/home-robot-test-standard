@@ -1,0 +1,70 @@
+{
+  "record": "twin_calibration",
+  "spec_version": "v0",
+  "id": "so101-twin/armnetbench-eye-drops-to-basket/2026-11-24",
+  "status": "uncalibrated",
+  "simulator": {"name": "MuJoCo", "version": "4.0.1", "config_hash": null},
+  "embodiment": "SO-101",
+  "robot_unit": null,
+  "sessions": [],
+  "joints": {
+    "source": "inferred",
+    "method": "Joint offsets fitted to SAM 2.1 arm silhouettes, then refitted with teleop grasp points; two fits that matched the silhouettes equally well differed by up to 7 degrees per joint. The robot's LeRobot calibration file is not in the released dataset",
+    "names": ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"],
+    "file": null,
+    "file_format": null,
+    "reference_poses": []
+  },
+  "control": {
+    "source": "missing",
+    "method": "Not in the released dataset. The twin assumed LeRobot v0.6.0's servo gains (P 16, I 0, D 32); NVIDIA's SO-101 stack uses I 16 [unverified], so the deployed gains are unknown",
+    "software": null,
+    "gains": null,
+    "control_hz": null,
+    "speed_limits": null,
+    "image_preprocessing": null,
+    "twin_uses": null
+  },
+  "actuators": {
+    "source": "inferred",
+    "method": "One gain scale and one force limit per arm joint and a shared 2-step action delay, fitted by tracking logged teleop actions on episodes 1839-1863; validation RMS 0.59-1.98 degrees per arm joint on episodes 1864-1888, gripper not scored. Gains and force limits are not separately identifiable from teleop data. No excitation recording exists",
+    "excitation": null,
+    "excites": {"every_joint": null, "varied_speeds": null, "reversals": null, "gripper_cycles": null, "deployed_stack": null},
+    "parameters": {"location": "fitted actuator parameter file (not released)", "sha256": "8cbff91319bbe9e28201022d916b867e319c8fd7098962dbc7ebdf6d4be7bfe4"},
+    "replay": null
+  },
+  "cameras": [
+    {
+      "id": "front", "source": "inferred", "mount": "base",
+      "method": "Intrinsics and pose fitted to arm silhouettes; the recording-session pose taken from the session's own top view",
+      "board_images": null, "board": null, "n_images": null, "focus_locked": null, "intrinsics": null,
+      "reprojection_rms_px": null, "pose": null, "pose_method": null, "pose_error_mm": null, "session_drift_px": {}
+    },
+    {
+      "id": "top", "source": "inferred", "mount": "base",
+      "method": "Intrinsics and pose fitted to arm silhouettes; focal length differed by 7% between equally good fits. Recording-session pose by transfer from the printed floor mat: residual median 19.3 mm and 2.90 degrees, near-optimal poses up to about 50 mm apart",
+      "board_images": null, "board": null, "n_images": null, "focus_locked": null, "intrinsics": null,
+      "reprojection_rms_px": null, "pose": null, "pose_method": null, "pose_error_mm": null, "session_drift_px": {}
+    },
+    {
+      "id": "wrist", "source": "inferred", "mount": "gripper",
+      "method": "Intrinsics and a correction to the Menagerie camera mount pose fitted to jaw masks",
+      "board_images": null, "board": null, "n_images": null, "focus_locked": null, "intrinsics": null,
+      "reprojection_rms_px": null, "pose": null, "pose_method": null, "pose_error_mm": null, "session_drift_px": {}
+    }
+  ],
+  "scene": {
+    "source": "inferred",
+    "method": "Object sizes and layouts from top-view SAM masks and grasp kinematics; the basket rim height was never measured. The arm sat inside the reconstructed basket in 29 of 30 real ACT layouts. ArmnetBench did not record initial object positions (arXiv 2611.03168v2)",
+    "fixed_objects": [
+      {"name": "shelf", "size_m": null, "mass_kg": null, "pose": null, "pose_method": null, "touch_error_mm": null},
+      {"name": "basket", "size_m": null, "mass_kg": null, "pose": null, "pose_method": null, "touch_error_mm": null}
+    ],
+    "task_objects": [
+      {"name": "carton", "size_m": null, "mass_kg": null}
+    ],
+    "layouts": {"method": null, "record": null, "episodes": 30, "episodes_recorded": 0}
+  },
+  "note": "Our SO-101 twin as of 2026-11-24. Every input was inferred from the released ArmnetBench data (armnet/armnetbench_v01_lerobot_so101 at 1db69c8) or is missing, so the twin is uncalibrated and no sim-versus-real number made with it is a comparison result. The fitted parameter file is not published; actuators.parameters gives its SHA-256. This record lists no inferred value as measured. robot_unit null: we found no statement in the release of which arm ran the ACT episodes. sessions empty: we did not establish the recording sessions or their dates",
+  "synthetic": false
+}

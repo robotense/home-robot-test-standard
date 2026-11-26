@@ -1,0 +1,70 @@
+{
+  "record": "reference_set",
+  "spec_version": "v0",
+  "id": "sim-agreement-v0/R2/1",
+  "benchmark": "sim-agreement-v0",
+  "track": "R2",
+  "version": 1,
+  "status": "draft",
+  "data_seen_before_rules": true,
+  "source": {
+    "citation": "arXiv 2610.00731v2 (Kaedim; real side by Robocurve)",
+    "url": "https://arxiv.org/html/2610.00731v2",
+    "location": "https://github.com/Kaedim/yam-sim-harness-oss",
+    "revision": "c44079e895c3bd4cec854ccdb4533180edc632fb",
+    "file_sha256": {
+      "scoring/real_reference_pertrial.csv": "a2930d89aece8bf77684db20084b944b6ec505cec00c0e4b93a89cde4a3084cc",
+      "scoring/table.json": "2d9b8af1c60ff236034786c9822e70513d59ac9824a0e7aa97e0e19f1d1d4456"
+    }
+  },
+  "licence": [
+    {"part": "real per-trial scores (scoring/real_reference_pertrial.csv)", "licence": "none granted; 'please credit Robocurve' (harness README at the revision)", "may_redistribute": false},
+    {"part": "scoring/table.json (harness)", "licence": "Apache-2.0 (harness LICENSE), but the file holds real cell means derived from the scores above; not redistributed", "may_redistribute": false}
+  ],
+  "producer": "Robocurve, a third-party evaluator, on its own robot setup under its own protocol (2610.00731v2 §3)",
+  "embodiment": "bimanual I2RT YAM",
+  "policies": {
+    "molmo": {"name": "MolmoAct2", "checkpoint": "allenai/MolmoAct2-BimanualYAM", "revision": null},
+    "pi05": {"name": "pi0.5", "checkpoint": "robocurve/pi0.5-yam", "revision": null}
+  },
+  "policy_identity": "Checkpoints named in the harness README at the revision, no revision pinned; that the real trials used the same revisions is [unverified]",
+  "tasks": {"bottles": "Bottles in bins", "bowls": "Stack bowls", "blocks": "Stack blocks", "latte": "Move latte cup", "clear_table": "Clear table"},
+  "tasks_excluded": {},
+  "cells": "all",
+  "trials_per_cell": 20,
+  "units_per_trial": {"bottles": 2, "bowls": 1, "blocks": 1, "latte": 1, "clear_table": 5},
+  "pairing": "cell",
+  "real_tables": {"primary": "Robocurve per-trial scores at the revision", "ceiling": null},
+  "grader": {
+    "kind": "human_rubric",
+    "by": "Robocurve's graders",
+    "rule": "the evaluator's rubric for every task, scored in rungs per object unit (2610.00731v2 §4)",
+    "code": null,
+    "blind_to_policy": null,
+    "agreement": null
+  },
+  "termination_rule": {
+    "kind": "budget",
+    "budget": {
+      "bottles": {"value": 6400, "unit": "steps"},
+      "bowls": {"value": 3600, "unit": "steps"},
+      "blocks": {"value": 3600, "unit": "steps"},
+      "latte": {"value": 3600, "unit": "steps"},
+      "clear_table": {"value": 12800, "unit": "steps"}
+    },
+    "control_hz": 30,
+    "stops_at_success": null,
+    "source": "2610.00731v2 Table 2 ('step budget per trial ... matching the evaluator'; control 30 Hz) and §3 ('step budgets were supplied by the evaluator'), fetched 2026-11-23. The paper does not state the unit or when a real trial ends; that real trials ran to these budgets is our reading [unverified]"
+  },
+  "classes": ["G", "T", "P", "S"],
+  "class_rule": {
+    "primary": "rung",
+    "sensitivity": ["grip", "grip_real_upper"],
+    "observable": {"bottles": "GTPS", "latte": "GTPS", "bowls": "GTPS", "blocks": "GTS", "clear_table": "GTS"},
+    "code": null
+  },
+  "metrics": ["level", "stage"],
+  "information": {"real_outcomes_public": true, "sealed": []},
+  "matching_file": null,
+  "synthetic": false
+}

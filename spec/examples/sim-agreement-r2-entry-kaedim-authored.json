@@ -1,0 +1,77 @@
+{
+  "record": "entry_card",
+  "spec_version": "v0",
+  "id": "sim-agreement-v0/R2/kaedim-authored",
+  "benchmark": "sim-agreement-v0",
+  "track": "R2",
+  "reference_set": {"id": "sim-agreement-v0/R2/1", "sha256": "4cb95af21f2aa716e31e24004c3637e2f7e5219287d91d0d4ceef5ba117c4e04"},
+  "kind": "simulator",
+  "provenance": "as_published",
+  "ours": false,
+  "builder": "Kaedim, authors of arXiv 2610.00731v2",
+  "conflict_of_interest": "Built by the paper's authors; it represents their reconstruction pipeline, which the paper compares with a default reconstruction. The real side was produced by Robocurve under a benchmarking agreement commissioned and paid for by Kaedim (harness README at c44079e)",
+  "simulator": {"name": "Isaac Sim", "version": "6.0.1", "config_hash": null},
+  "assets": [{"name": "Kaedim authored scene reconstruction", "licence": null}],
+  "checkpoints": {
+    "molmo": {"revision": null, "matches_reference": null},
+    "pi05": {"revision": null, "matches_reference": null}
+  },
+  "twin_calibration": null,
+  "information_used": {
+    "class": "exposed",
+    "rule": null,
+    "saw": ["sim-agreement-v0/R2/1"],
+    "tuned_on": null,
+    "calibration_manifest": null,
+    "note": "The builders had the real results: the paper compares against them. Runs pass a gate before their trials are scored (2610.00731v2); what the gate tests, and whether any real outcome was used to tune the scenes, was not checked [unverified]"
+  },
+  "grader": {
+    "kind": "automatic_rule",
+    "by": "Kaedim harness",
+    "rule": "rules derived from the evaluator's rubric, each stage decided by a rule on object poses and gripper contact (2610.00731v2 §4); simulated latte rung 5 also counts pushes",
+    "code": "https://github.com/Kaedim/yam-sim-harness-oss/blob/c44079e895c3bd4cec854ccdb4533180edc632fb/harness/isaac_trials.py",
+    "blind_to_policy": null,
+    "agreement": "28 of 30 simulated trials graded by eye by the authors agreed with the rules (2610.00731v2 §6, fetched 2026-11-23)",
+    "same_as_reference": false
+  },
+  "termination_rule": {
+    "kind": "budget",
+    "budget": {
+      "bottles": {"value": 6400, "unit": "steps"},
+      "bowls": {"value": 3600, "unit": "steps"},
+      "blocks": {"value": 3600, "unit": "steps"},
+      "latte": {"value": 3600, "unit": "steps"},
+      "clear_table": {"value": 12800, "unit": "steps"}
+    },
+    "control_hz": 30,
+    "stops_at_success": false,
+    "source": "2610.00731v2 Table 2, fetched 2026-11-23. Our tabulation of the 21 fetched run files, 2026-11-23: every trial records a fixed frame count per task (1,800 for blocks, bowls and latte; 3,195-3,200 for bottles; 6,400-6,405 for clear table), successes included, about half the printed budget"
+  },
+  "episodes_per_cell": 20,
+  "cells": "all",
+  "seeds": null,
+  "compute": null,
+  "code": {"location": "https://github.com/Kaedim/yam-sim-harness-oss", "revision": "c44079e895c3bd4cec854ccdb4533180edc632fb"},
+  "outputs": {
+    "format": "per_trial_records",
+    "location": "https://huggingface.co/datasets/projectsim/yam-real-to-sim-runs",
+    "revision": "333dc74825ef39db53613df94401df7af1373660",
+    "select": "the run per cell in column 'kaedim' of scoring/table.json at the harness revision",
+    "licence": "CC BY 4.0",
+    "hashes": {
+      "runs/C1_blocks_molmo/results.jsonl": "fb6c3d9185c8bbc9119bc9636cbad6fe63df80783531ffd6ab80485cbf8793fd",
+      "runs/C2_bowls_pi05/results.jsonl": "23e3411e11cdbe5fbd5577631238c7f9fa1c97d8aeb6d15185fa5dc4da51c43a",
+      "runs/K1_bot_pi05_plain/results.jsonl": "5fd57bd7e7c96678727bec0e691a987f325a42d4ab1bed720fd1c60d38b78ec8",
+      "runs/K2_bot_molmo_plain/results.jsonl": "0e815a0cb0fd5ece4c6684421afde0b9fbf6af44393064f780e4a834e385f814",
+      "runs/K3_latte_pi05_plain/results.jsonl": "121ee4c014bf0af7c0f703ab0810ae7d726708b84c84b79a3f3110caa8a26ff6",
+      "runs/RB_BOWLS_a/results.jsonl": "d852bb41f6c604213379a1e39d80b4fd3d5c2e102760935d9045cb08c28ead9e",
+      "runs/RB_BOWLS_b/results.jsonl": "d1049305d110fbeb4a0421791accf8dc13668d651fa9e5609d9af01b2b73e429",
+      "runs/T1_blocks_pi05/results.jsonl": "407c8d20a3439f8d45b73af135325ff1a07d6b0ac03ce8c3df148e6dbb68dc05",
+      "runs/V2_K_cleartable_molmo/results.jsonl": "8435820f732cae099cbb99a2418b4bbb066e3b699966a5aff62f6ae421597da8",
+      "runs/V2_K_latte_molmo/results.jsonl": "fd34ff0918b7f82a85c3d4b5c21428f1714a72b120772e338b8c8b950ce7ba04",
+      "runs/ZZ2_K_ct_pi05/results.jsonl": "17c806d096bfd957cab2adb694678bfcde094954b156f36d055bf1b332120b5b"
+    }
+  },
+  "frozen_at": null,
+  "synthetic": false
+}

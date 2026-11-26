@@ -1,0 +1,16 @@
+# spec/v0.md §10, Example 2. The spec shows only id, goal and stages; those lines are copied verbatim on 2026-11-24.
+# Added here so the document is complete (assumptions, not from the spec): spec_version, task, scene, factors (none),
+# constraints (none), nominal_ref, real_reproducible (null: not trust-taggable), trust.
+spec_version: v0
+id: clear_table_ordered_002
+task: {instructions: ["put the plate in the box, then the cube"], embodiment: droid_franka}
+scene: {base: tabletop_kitchen_a, objects: {plate: plate_20cm, cube: cube_5cm, box: box_30cm}}
+factors: []
+goal: "seq(inside(plate, box, 0.05), inside(cube, box, 0.05))"
+constraints: []
+stages:
+  - {for_each: [plate, cube], id: acquire, holds: "lifted($o, 0.03)", class_if_last_failed: G}
+  - {for_each: [plate, cube], id: place, holds: "inside($o, box, 0.05)", class_if_last_failed: T}
+nominal_ref: self
+real_reproducible: null
+trust: []

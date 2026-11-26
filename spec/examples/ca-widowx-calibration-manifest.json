@@ -1,0 +1,12 @@
+{
+  "record": "calibration_manifest",
+  "spec_version": "v0",
+  "id": "ca-illustration-simpler-widowx-2026-11-22/calibration",
+  "simulator": {"name": "SIMPLER", "version": null, "config_hash": null},
+  "embodiment": "WidowX",
+  "disclosed": false,
+  "source": "No calibration history is published with the AutoEval paper's Table 3 or supplied by the SIMPLER authors; whether the WidowX scenes were tuned with any of the six policies is unknown",
+  "items": [],
+  "frozen_at": null,
+  "synthetic": false
+}
