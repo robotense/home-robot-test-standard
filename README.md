@@ -1,7 +1,5 @@
 # Robotense home robot test standard
 
-[![validate](https://github.com/robotense/home-robot-test-standard/actions/workflows/validate.yml/badge.svg)](https://github.com/robotense/home-robot-test-standard/actions/workflows/validate.yml)
-
 The Robotense test standard defines how a home-robot test is written, how each trial is recorded and scored, and how far a simulated result can be relied on for a real robot. `spec/v0.md` defines the scenario document (one per test: the task, the scene and its named objects, the factors that may vary, the goal with its margins, the constraints and the stages), the episode record (one per trial), the trust entry, the benchmark records (reference set and entry card), the credibility assessment records (cell agreement, assessment plan and calibration manifest) and the twin calibration record. `spec/variance-v0.md` defines the home variance classification, a shared vocabulary for the conditions a home robot operates in, and the variance card, the record format for one condition, which compiles into scene edits and the factors of a scenario document.
 
 ## Status
@@ -29,7 +27,6 @@ Goal conditions build on BDDL's declarative goal predicates (Srivastava et al., 
 | `spec/examples/sim-agreement-r2-*.json` | A benchmark reference set and entry card, both drafts |
 | `spec/examples/ca-widowx-*` | Credibility assessment records built from published counts, marked `illustration` (`spec/v0.md` §12) |
 | `spec/examples/twin-calibration-so101-armnetbench.json` | A twin calibration record with status `uncalibrated` (`spec/v0.md` §13) |
-| `.github/workflows/validate.yml` | Runs the validator and the tests on Python 3.11 and 3.13 for every push and pull request |
 | `LICENSE` | Apache License 2.0, for code and examples |
 | `LICENSE-docs` | Creative Commons Attribution 4.0 International, for the text |
 
