@@ -1,4 +1,4 @@
-"""Tests of episode record versions v0, v0.1 and v0.2 (spec/v0.md §8.1, §8.4, §14).
+"""Tests of episode record versions v0, v0.1, v0.2 and v0.3 (spec/v0.md §8.1, §8.4, §14).
 Standard library only.
 
     python3 -I -m unittest discover -s spec/tests
@@ -164,6 +164,51 @@ class V0_2(unittest.TestCase):
                 seen[t] = reached
         self.assertEqual(set(seen), set(validate.PNP_PREDICATES))
         self.assertTrue(set(seen).isdisjoint({"drop", "pulled_off", "knocked", "off_counter", "timeout"}))
+
+
+
+def as_v0_3(e, **generator):
+    """The v0.3 record of a v0.1 record: the v0.2 fields (option hash not recorded) and the generator updated."""
+    e = as_v0_2(e, None)
+    e["spec_version"] = "v0.3"
+    e["generator"].update(generator)
+    return e
+
+
+class V0_3(unittest.TestCase):
+    """`generator.seedless`: a generator that draws no random number, with an empty `generator.seeds`."""
+
+    def setUp(self):
+        self.e = next(r for r in load(V0_1).values() if not r["outcome"]["success"])
+
+    def test_old_labels_unchanged(self):
+        """v0.1 and v0.2 keep their rules: an empty seed map and the flag are refused under both labels."""
+        for label in ("v0.1", "v0.2"):
+            e = copy.deepcopy(self.e) if label == "v0.1" else as_v0_2(self.e, None)
+            for gen in ({"seeds": {}}, {"seeds": {}, "seedless": True}, {"seedless": False}):
+                bad = copy.deepcopy(e)
+                bad["generator"].update(gen)
+                self.assertTrue(problems({"e": bad}), (label, gen))
+
+    def test_v0_3_exports_of_v0_1_records(self):
+        """A new export of the same source records under v0.3 validates with its seeds, with or without the flag."""
+        for gen in ({}, {"seedless": False}):
+            recs = {n: as_v0_3(r, **gen) for n, r in load(V0_1).items()}
+            self.assertFalse(problems(recs), gen)
+
+    def test_seedless_generator(self):
+        ok = as_v0_3(self.e, seeds={}, seedless=True, constraints_sha256=None)
+        self.assertFalse(problems({"e": ok}))
+        self.assertFalse(problems({"e": dict(ok, generator=None)}))   # a stored scenario document, as before
+
+    def test_seedless_rules(self):
+        for gen in ({"seedless": True}, {"seeds": {}}, {"seeds": {}, "seedless": False},
+                    {"seeds": {}, "seedless": "true"}, {"seeds": {}, "seedless": None}, {"seeds": {}, "seedless": 1}):
+            self.assertTrue(problems({"e": as_v0_3(self.e, **gen)}), gen)
+
+    def test_v0_3_needs_the_v0_2_fields(self):
+        msgs = problems({"e": dict(self.e, spec_version="v0.3")})["e"]
+        self.assertIn("missing field `simulated`", msgs)
 
 
 if __name__ == "__main__":

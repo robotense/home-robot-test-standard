@@ -31,6 +31,10 @@ FAILURE_TYPES = ("instruction", "visual", "layout", "object_identity", "object_s
                  "safety_constraint")   # §2
 VERDICTS = ("agree", "disagree_offset", "disagree_scatter", "disagree_offset_and_scatter", "inconclusive", "floor",
             "not_determined", "not_yet_calibrated")
+VERDICTS_V0_4 = VERDICTS + ("disagree_unresolved",)   # §7, from v0.4
+Z_LOA = 1.96                 # 95% limits of agreement, |bias| + 1.96 x scatter (§7, v0.4)
+LOA_METHODS = ("union_bound",)   # §7 v0.4: methods that compute the bounds on the limits of agreement
+DELTA_TOL = 1e-9             # delta_agree and delta_disagree must equal the recomputed bounds to this
 CELL_LABELS = ("DISAGREE", "AGREE", "INCONCLUSIVE", "FLOOR")
 REPORTED = ("customer_draft", "customer_final")   # plan statuses whose verdicts reach a customer (§13.3)
 
@@ -192,6 +196,19 @@ TRUST_ENTRY = {
     "validation_domain_ref": opt(sha256), "calibration_overlap": one_of(False, "unknown"),
     "twin_calibration": one_of("calibrated", "uncalibrated"), "fitted": opt(date), "synthetic": boolean,
 }
+
+# §7, v0.4: the limits-of-agreement verdict rule. Every v0 field keeps its type; `verdict` takes the new rule and the
+# value disagree_unresolved; the rule's name, its bound method, the non-FLOOR inputs of the padding check and the two
+# demonstrated tolerances are added, all required.
+NON_FLOOR = shape({"n_cells": nonneg_int, "bias": opt(shape({"value": number, "ci95": pair})),
+                   "scatter_net": opt(shape({"value": lambda v: number(v) and v >= 0, "ci95": opt(pair)}))})
+TRUST_ENTRY_V0_4 = dict(
+    TRUST_ENTRY, spec_version=one_of("v0.4"), verdict=one_of(*VERDICTS_V0_4),
+    verdict_possible=opt(list_of(one_of(*VERDICTS_V0_4), True)),
+    verdict_rule=one_of("limits_of_agreement"), loa_method=one_of(*LOA_METHODS), non_floor=opt(NON_FLOOR),
+    delta_agree=opt(lambda v: number(v) and v >= 0), delta_disagree=opt(positive),
+)
+TRUST_VERSIONS = {"v0": TRUST_ENTRY, "v0.4": TRUST_ENTRY_V0_4}
 
 CELL_AGREEMENT = {
     "record": one_of("cell_agreement"), "spec_version": one_of("v0"), "assessment_id": text, "cell": CELL,
@@ -364,16 +381,25 @@ EPISODE_V0_2 = dict(
                      "physics": lambda v: isinstance(v, dict), "physics_options_sha256": opt(sha256)}),
     simulated=boolean,
 )
-EPISODE_VERSIONS = {"v0": EPISODE, "v0.1": EPISODE_V0_1, "v0.2": EPISODE_V0_2}
+# Episode record v0.3 (spec/v0.md §8.1 row marked v0.3, §14): v0.2's fields plus the optional `generator.seedless`;
+# with it true, `generator.seeds` is the empty map (checked in check_episode_v0_3).
+SEED_MAP = map_of(lambda v: isinstance(v, int) and not isinstance(v, bool))
+EPISODE_V0_3 = dict(
+    EPISODE_V0_2, spec_version=one_of("v0.3"),
+    generator=opt(shape({"name": text, "release": text, "constraints_sha256": opt(sha256), "seeds": SEED_MAP},
+                        optional={"seedless": boolean})),
+)
+EPISODE_VERSIONS = {"v0": EPISODE, "v0.1": EPISODE_V0_1, "v0.2": EPISODE_V0_2, "v0.3": EPISODE_V0_3}
 
 
 def schema_of(rec):
     """The schema for a record: by kind, and for an episode record by its spec_version (unknown versions get v0's
     schema, which then names the bad spec_version)."""
     kind = rec.get("record") if isinstance(rec, dict) else None
-    if kind == "episode":
+    versions = {"episode": (EPISODE_VERSIONS, EPISODE), "trust_entry": (TRUST_VERSIONS, TRUST_ENTRY)}.get(kind)
+    if versions is not None:
         sv = rec.get("spec_version")
-        return EPISODE_VERSIONS.get(sv, EPISODE) if isinstance(sv, str) else EPISODE
+        return versions[0].get(sv, versions[1]) if isinstance(sv, str) else versions[1]
     return SCHEMAS.get(kind) if isinstance(kind, str) else None
 
 
@@ -543,6 +569,126 @@ def rule_verdict(bias_ci, scatter, scatter_ci, delta):
     return "inconclusive", ()
 
 
+def loa_bounds(bias_ci, s_lo, s_hi):
+    """(L, U): the lower and upper bounds on the limits of agreement |bias| + 1.96 x scatter, by the union bound of
+    spec/v0.md §7 (v0.4): L = dist(0, bias interval) + 1.96 s_lo, U = max |bias interval end| + 1.96 s_hi."""
+    lo, hi = bias_ci
+    dist0 = 0.0 if lo <= 0 <= hi else min(abs(lo), abs(hi))
+    return dist0 + Z_LOA * s_lo, max(abs(lo), abs(hi)) + Z_LOA * s_hi
+
+
+def loa_rule(bias_ci, scatter_ci, delta):
+    """The §7 v0.4 verdict over one set of cells, before the padding check. Mirrors our reference implementation of
+    the rule and our report generator."""
+    L, U = loa_bounds(bias_ci, *scatter_ci)
+    if U <= delta:
+        return "agree"
+    if L <= delta:
+        return "inconclusive"
+    scatter = Z_LOA * scatter_ci[0] > delta
+    if scatter and (bias_ci[0] > delta or bias_ci[1] < -delta):
+        return "disagree_offset_and_scatter"
+    if scatter:
+        return "disagree_scatter"
+    if Z_LOA * scatter_ci[1] <= delta:
+        return "disagree_offset"
+    return "disagree_unresolved"
+
+
+def scatter_intervals(point, bias_ci, delta):
+    """Scatter intervals [s_lo, s_hi] that contain `point`, at least one in every region where the §7 v0.4 rule's
+    result is constant: the rule compares s_lo and s_hi only with the cuts below, so the ends 0, `point` and a value
+    above every cut, with each cut and its two neighbouring floats, reach every region."""
+    lo, hi = bias_ci
+    dist0 = 0.0 if lo <= 0 <= hi else min(abs(lo), abs(hi))
+    cuts = [delta / Z_LOA, (delta - dist0) / Z_LOA, (delta - max(abs(lo), abs(hi))) / Z_LOA]
+    near = {x for c in cuts for x in (math.nextafter(c, -math.inf), c, math.nextafter(c, math.inf))}
+    los = {0.0, point} | {x for x in near if 0 <= x <= point}
+    his = {point, max(cuts + [point]) + 1.0} | {x for x in near if x >= point}
+    return [(a, b) for a in los for b in his]
+
+
+def loa_outcomes(bias_ci, scatter, scatter_ci, delta):
+    """Results of the §7 v0.4 rule (before the padding check) over every scatter interval consistent with the entry:
+    its own interval, or, when that is null, every interval that contains the scatter point."""
+    if scatter_ci is not None:
+        return {loa_rule(bias_ci, scatter_ci, delta)}
+    return {loa_rule(bias_ci, iv, delta) for iv in scatter_intervals(scatter, bias_ci, delta)}
+
+
+def rule_verdict_loa(t):
+    """(verdict, verdicts still possible) of the §7 v0.4 rule on a graded entry's own inputs, the padding check
+    included: `floor` when no cell is non-FLOOR; AGREE needs the rule's AGREE over all cells and over the non-FLOOR
+    cells, so with fewer than 2 non-FLOOR cells an AGREE becomes INCONCLUSIVE; `not_determined` when a null scatter
+    interval leaves more than one verdict possible."""
+    nf, delta = t["non_floor"], t["tolerance"]
+    if nf["n_cells"] == 0:
+        return "floor", ()
+    outcomes = loa_outcomes(t["bias"]["ci95"], t["scatter_net"]["value"], t["scatter_net"]["ci95"], delta)
+    if "agree" in outcomes:
+        pad = ({False} if nf["n_cells"] < 2 else
+               {v == "agree" for v in loa_outcomes(nf["bias"]["ci95"], nf["scatter_net"]["value"],
+                                                   nf["scatter_net"]["ci95"], delta)})
+        outcomes = (outcomes - {"agree"}) | ({"agree"} if True in pad else set()) \
+            | ({"inconclusive"} if False in pad else set())
+    if len(outcomes) == 1:
+        return next(iter(outcomes)), ()
+    return "not_determined", tuple(sorted(outcomes))
+
+
+def demonstrated(t):
+    """(delta_agree, delta_disagree) of a graded v0.4 entry (§7): delta_agree = max(U over all cells, U over the
+    non-FLOOR cells), null with fewer than 2 non-FLOOR cells or a null scatter interval; delta_disagree = L over all
+    cells, null when L is 0 or the scatter interval is null."""
+    nf, b, sci = t["non_floor"], t["bias"]["ci95"], t["scatter_net"]["ci95"]
+    if sci is None:
+        return None, None
+    L, U = loa_bounds(b, *sci)
+    dA = None
+    if nf["n_cells"] >= 2 and nf["scatter_net"]["ci95"] is not None:
+        dA = max(U, loa_bounds(nf["bias"]["ci95"], *nf["scatter_net"]["ci95"])[1])
+    return dA, (L if L > 0 else None)
+
+
+def same_number(a, b):
+    return (a is None) == (b is None) and (a is None or abs(a - b) <= DELTA_TOL)
+
+
+def check_loa_entry(t):
+    """The v0.4 additions to a trust entry (§7): non-FLOOR inputs, the verdict by the limits-of-agreement rule and the
+    demonstrated tolerances."""
+    v, nf = t["verdict"], t["non_floor"]
+    if v == "not_yet_calibrated":
+        if nf is not None or t["delta_agree"] is not None or t["delta_disagree"] is not None:
+            return ["a not_yet_calibrated entry has non_floor, delta_agree and delta_disagree null"]
+        return []
+    if nf is None:
+        return ["a verdict other than not_yet_calibrated needs non_floor"]
+    out = []
+    if nf["n_cells"] > t["n_cells"]:
+        out.append("non_floor.n_cells exceeds n_cells")
+    if (nf["n_cells"] >= 2) != (nf["bias"] is not None) or (nf["n_cells"] >= 2) != (nf["scatter_net"] is not None):
+        return out + ["non_floor.bias and non_floor.scatter_net are given exactly when non_floor.n_cells is at least 2"]
+    if nf["bias"] is not None:
+        out += interval_holds("non_floor.bias.ci95", nf["bias"]["value"], nf["bias"]["ci95"])
+        out += interval_holds("non_floor.scatter_net.ci95", nf["scatter_net"]["value"], nf["scatter_net"]["ci95"])
+    if out:
+        return out
+    want, possible = rule_verdict_loa(t)
+    if v != want:
+        out.append(f"verdict must be {want} by the §7 limits-of-agreement rule on the entry's bias interval "
+                   f"(bias.ci95), scatter, non-FLOOR inputs and tolerance")
+    elif v == "not_determined" and set(t["verdict_possible"] or ()) != set(possible):
+        out.append(f"verdict_possible must be {', '.join(possible)} by the §7 limits-of-agreement rule")
+    dA, dD = demonstrated(t)
+    if not same_number(t["delta_agree"], dA):
+        out.append(f"delta_agree must be {dA}: max(U over all cells, U over the non-FLOOR cells), null with fewer "
+                   f"than 2 non-FLOOR cells or without a scatter interval")
+    if not same_number(t["delta_disagree"], dD):
+        out.append(f"delta_disagree must be {dD}: L over all cells, null when L is 0 or without a scatter interval")
+    return out
+
+
 def check_trust_entry(t):
     out = []
     scope, target = t["scope"], t["target"]
@@ -571,6 +717,8 @@ def check_trust_entry(t):
     elif b["ci95"] is None or sc["value"] is None or t["n_cells"] == 0 or t["n_real_episodes"] == 0:
         out.append("a verdict other than not_yet_calibrated needs the bias interval (bias.ci95), scatter and at least "
                    "one cell")
+    elif t["spec_version"] == "v0.4":
+        out += check_loa_entry(t)
     elif v != "floor":
         want, possible = rule_verdict(b["ci95"], sc["value"], sc["ci95"], t["tolerance"])
         if v != want:
@@ -578,6 +726,8 @@ def check_trust_entry(t):
                        f"and tolerance")
         elif v == "not_determined" and set(t["verdict_possible"] or ()) != set(possible):
             out.append(f"verdict_possible must be {', '.join(possible)} by the §6.3 rule")
+    if t["spec_version"] == "v0.4" and v == "not_yet_calibrated":
+        out += check_loa_entry(t)
     if t["kpi"] is not None and t["plan_sha256"] is None:
         out.append("kpi names a KPI of a plan, so plan_sha256 is required")
     out += interval_holds("bias.ci95", b["value"], b["ci95"])
@@ -760,11 +910,25 @@ def check_episode(e):
         out.append("a non-synthetic record names its policy family: without one it cannot be told from a scripted run")
     if e["real_rerun"] is not None and e["synthetic"]:
         out.append("a real rerun is never synthetic")
-    if e["spec_version"] in ("v0.1", "v0.2"):
+    if e["spec_version"] in ("v0.1", "v0.2", "v0.3"):
         out += check_episode_v0_1(e)
-    if e["spec_version"] == "v0.2":
+    if e["spec_version"] in ("v0.2", "v0.3"):
         out += check_episode_v0_2(e)
+    if e["spec_version"] == "v0.3":
+        out += check_episode_v0_3(e)
     return out
+
+
+def check_episode_v0_3(e):
+    """Rules of the v0.3 field (spec/v0.md §8.1): `generator.seedless` true exactly when `generator.seeds` is empty."""
+    g = e["generator"]
+    if g is None:
+        return []
+    if g.get("seedless", False):
+        return [] if not g["seeds"] else ["generator.seedless true: a generator that draws no random number lists no "
+                                          "seeds (seeds is {})"]
+    return [] if g["seeds"] else ["generator.seeds: empty only with generator.seedless true (a generator that draws "
+                                  "no random number says so); otherwise it names at least one base-scene seed"]
 
 
 def check_episode_v0_2(e):
@@ -992,6 +1156,10 @@ def trust_links(t, index, cell_records, cells_failed):
                  and not c["in_calibration"]]
         if cells and (t["verdict"] == "floor") != all(c["label"] == "FLOOR" for c in cells):
             out.append("verdict is floor exactly when every cell is FLOOR")
+        non_floor = sum(c["label"] != "FLOOR" for c in cells)
+        if cells and t["spec_version"] == "v0.4" and t["non_floor"] is not None \
+                and t["non_floor"]["n_cells"] != non_floor and (plan["id"], t["kpi"]) not in cells_failed:
+            out.append(f"non_floor.n_cells must count the plan's cell agreement records not labelled FLOOR ({non_floor})")
         if (plan["id"], t["kpi"]) in cells_failed:
             out.append("n_cells not checked: a cell agreement record of this plan and KPI failed validation")
         elif cells and (t["n_cells"], t["n_real_episodes"]) != (len(cells), sum(c["real"]["n"] for c in cells)):
@@ -1043,6 +1211,32 @@ def validate(records):
     for name, rec in valid("trust_entry"):
         problems[name] += trust_links(rec, index, cell_records, cells_failed)
     return problems
+
+
+# The WidowX example's graded entry as a v0.4 export (§7): the non-FLOOR inputs over its 14 non-FLOOR cells and the
+# demonstrated tolerances, as computed by the reference implementation of the rule (same intervals, seeds as the
+# example's). The non-FLOOR bias value is the mean of d over those cells (-1.50 / 14), as §7 defines bias and as the
+# published entry gives it over all cells; delta_agree uses the intervals only. The verdict stays disagree_scatter.
+WIDOWX_V0_4 = {
+    "spec_version": "v0.4", "verdict_rule": "limits_of_agreement", "loa_method": "union_bound",
+    "non_floor": {"n_cells": 14,
+                  "bias": {"value": -0.10714285714285714, "ci95": [-0.14177219606773236, -0.06831183754571299]},
+                  "scatter_net": {"value": 0.4788519633018395, "ci95": [0.4401165266801726, 0.5138002824633572]}},
+    "delta_agree": 1.1488207496959124, "delta_disagree": 0.6945075165582807,
+}
+WIDOWX_V0_4_UNCALIBRATED = {"spec_version": "v0.4", "verdict_rule": "limits_of_agreement", "loa_method": "union_bound",
+                            "non_floor": None, "delta_agree": None, "delta_disagree": None}
+
+
+def as_v0_4(t, **fields):
+    """A trust entry exported as v0.4 in memory: the v0.4 fields of the WidowX example (or null for a
+    not_yet_calibrated entry), then `fields`; delta_agree and delta_disagree recomputed when `recompute` is true."""
+    recompute = fields.pop("recompute", False)
+    t.update(copy.deepcopy(WIDOWX_V0_4_UNCALIBRATED if t["verdict"] == "not_yet_calibrated" else WIDOWX_V0_4))
+    t.update(fields)
+    if recompute:
+        t["delta_agree"], t["delta_disagree"] = demonstrated(t)
+    return t
 
 
 def complete_twin(t, simulator=None, embodiment=None):
@@ -1200,6 +1394,15 @@ def selftest(records):
             r["simulator"]["physics_options_sha256"] = physics_sha
         return apply
 
+    def v03(name, **generator):
+        """A v0.1 record exported in memory as v0.3: the v0.2 fields (option hash not recorded) and the generator
+        updated by `generator` (`seedless=True, seeds={}` gives a seedless generator)."""
+        def apply(recs):
+            v02(name, None)(recs)
+            recs[name]["spec_version"] = "v0.3"
+            recs[name]["generator"].update(generator)
+        return apply
+
     def pnp(reached="lift", success=False, **outcome):
         """lost1 as a v0.2 failure (or success) scored by molmospaces_pnp_port_v1 (§8.4), with invented times."""
         def apply(recs):
@@ -1218,7 +1421,64 @@ def selftest(records):
             o.update(outcome)
         return apply
 
+    def v04(name=None, **fields):
+        """Both trust entries exported as v0.4 (as_v0_4), then `fields` applied to entry `name` with the demonstrated
+        tolerances recomputed from its own inputs unless `fields` gives them."""
+        def apply(recs):
+            for r in recs.values():
+                if r["record"] == "trust_entry":
+                    as_v0_4(r)
+            if name is not None:
+                as_v0_4(recs[name], recompute="delta_agree" not in fields and "delta_disagree" not in fields, **fields)
+        return apply
+
+    # Separate-rule AGREE: bias interval inside ±δ and scatter upper bound ≤ δ, but U = 0.1 + 1.96 × 0.2 = 0.492 > δ.
+    v0_agree = dict(bias={"value": 0.0, "ci95": [-0.1, 0.1], "ci95_clustered": None},
+                    scatter_net={"value": 0.1, "ci95": [0.0, 0.2]})
+    v0_agree_nf = {"n_cells": 14, "bias": {"value": 0.0, "ci95": [-0.1, 0.1]},
+                   "scatter_net": {"value": 0.1, "ci95": [0.0, 0.2]}}
+    no_interval = dict(scatter_net={"value": 0.364, "ci95": None},
+                       non_floor=dict(WIDOWX_V0_4["non_floor"], scatter_net={"value": 0.479, "ci95": None}))
+
     faults = {  # label: (name of the record that must be rejected, fault)
+        "v0.4: a v0-style AGREE whose upper bound on the limits of agreement exceeds δ": (graded, v04(
+            graded, verdict="agree", non_floor=v0_agree_nf, **v0_agree)),
+        "v0.4: AGREE over all cells that fails over the non-FLOOR cells": (graded, v04(
+            graded, verdict="agree", bias={"value": 0.0, "ci95": [-0.05, 0.05], "ci95_clustered": None},
+            scatter_net={"value": 0.0, "ci95": [0.0, 0.05]})),
+        "v0.4: AGREE with fewer than 2 non-FLOOR cells": (graded, v04(
+            graded, verdict="agree", bias={"value": 0.0, "ci95": [-0.05, 0.05], "ci95_clustered": None},
+            scatter_net={"value": 0.0, "ci95": [0.0, 0.05]},
+            non_floor={"n_cells": 1, "bias": None, "scatter_net": None})),
+        "v0.4: disagree_scatter where the cause is unresolved": (graded, v04(
+            graded, verdict="disagree_scatter", bias={"value": 0.2, "ci95": [0.15, 0.25], "ci95_clustered": None},
+            scatter_net={"value": 0.1, "ci95": [0.06, 0.2]})),
+        "v0: disagree_unresolved": setter(graded, ["verdict"], "disagree_unresolved"),
+        "v0: a v0.4 field": setter(graded, ["delta_agree"], 1.0),
+        "v0.4: without the non-FLOOR inputs": (graded, lambda recs: (v04()(recs), recs[graded].pop("non_floor"))),
+        "v0.4: without the rule's name": (graded, lambda recs: (v04()(recs), recs[graded].pop("verdict_rule"))),
+        "v0.4: an unknown bound method": (graded, v04(graded, loa_method="direct")),
+        "v0.4: delta_agree not the bound": (graded, v04(graded, delta_agree=1.0, delta_disagree=0.6945075165582807)),
+        "v0.4: delta_agree without the padding check": (graded, v04(
+            graded, delta_agree=loa_bounds(records[graded]["bias"]["ci95"], *records[graded]["scatter_net"]["ci95"])[1],
+            delta_disagree=0.6945075165582807)),
+        "v0.4: delta_disagree rounded": (graded, v04(graded, delta_agree=1.1488207496959124, delta_disagree=0.695)),
+        "v0.4: delta_agree given with fewer than 2 non-FLOOR cells": (graded, v04(
+            graded, verdict="disagree_scatter", non_floor={"n_cells": 1, "bias": None, "scatter_net": None},
+            delta_agree=1.0, delta_disagree=0.6945075165582807)),
+        "v0.4: non-FLOOR count not the cells'": (graded, v04(
+            graded, non_floor=dict(WIDOWX_V0_4["non_floor"], n_cells=13))),
+        "v0.4: non-FLOOR inputs with fewer than 2 non-FLOOR cells": (graded, v04(
+            graded, non_floor=dict(WIDOWX_V0_4["non_floor"], n_cells=1))),
+        "v0.4: floor with non-FLOOR cells": (graded, v04(graded, verdict="floor")),
+        "v0.4: not_determined with the wrong possible verdicts": (graded, v04(
+            graded, verdict="not_determined", verdict_possible=["disagree_scatter", "inconclusive"], **no_interval)),
+        "v0.4: a determined verdict without a scatter interval": (graded, v04(
+            graded, verdict="disagree_scatter", **no_interval)),
+        "v0.4: not_yet_calibrated with non-FLOOR inputs": (uncalibrated, lambda recs: (
+            v04()(recs), recs[uncalibrated].update(non_floor={"n_cells": 0, "bias": None, "scatter_net": None}))),
+        "trust entry labelled v0.3": setter(graded, ["spec_version"], "v0.3"),
+        "trust entry labelled v0.4 without the v0.4 fields": setter(graded, ["spec_version"], "v0.4"),
         "synthetic reference set": setter(ref, ["synthetic"], True),
         "unknown field": setter(ref, ["note"], "x"),
         "rank with too few policies": setter(ref, ["metrics"], ["level", "rank", "stage"]),
@@ -1288,7 +1548,7 @@ def selftest(records):
         "v0 episode carrying a v0.1 field": setter(lost, ["compute"], {"inference_device": "cpu", "device_name": "x",
                                                                        "toolkit": {}, "kernel_settings": {}}),
         "v0 episode labelled v0.1 without the v0.1 fields": setter(lost, ["spec_version"], "v0.1"),
-        "episode with an unknown spec version": setter(lost, ["spec_version"], "v0.3"),
+        "episode with an unknown spec version": setter(lost, ["spec_version"], "v0.4"),
         "v0.1 episode carrying simulated": setter(lost1, ["simulated"], True),
         "v0.1 episode carrying a physics options hash": setter(lost1, ["simulator", "physics_options_sha256"], "a" * 64),
         "v0.1 episode with the v0.2 checker": setter(lost1, ["outcome", "checker"], PNP),
@@ -1306,6 +1566,17 @@ def selftest(records):
         "v0.2 real episode with a physics options hash": (lost1, lambda recs: (v02(lost1)(recs), recs[lost1].update(
             simulated=False, synthetic=False,
             real_rerun={"random_holdout": True, "setup_seconds": None, "initial_poses": None}))),
+        "v0.1 episode carrying generator.seedless": setter(lost1, ["generator", "seedless"], False),
+        "v0.2 episode with an empty generator.seeds": (lost1, lambda recs: (v02(lost1)(recs), recs[lost1][
+            "generator"].update(seeds={}))),
+        "v0.2 episode with a seedless generator": (lost1, lambda recs: (v02(lost1)(recs), recs[lost1][
+            "generator"].update(seeds={}, seedless=True))),
+        "v0.1 episode labelled v0.3 without the v0.2 fields": setter(lost1, ["spec_version"], "v0.3"),
+        "v0.3 seedless generator that lists seeds": (lost1, v03(lost1, seedless=True)),
+        "v0.3 empty seeds without seedless": (lost1, v03(lost1, seeds={})),
+        "v0.3 empty seeds with seedless false": (lost1, v03(lost1, seeds={}, seedless=False)),
+        "v0.3 seedless as text": (lost1, v03(lost1, seeds={}, seedless="true")),
+        "v0.3 seedless null": (lost1, v03(lost1, seeds={}, seedless=None)),
         "pnp failure with a positive margin": (lost1, pnp(episode_margin=0.5)),
         "pnp failure with a margin off the stage rule": (lost1, pnp(episode_margin=-0.75)),
         "pnp failure after lift classed G": (lost1, pnp(stage_class="G")),
@@ -1452,6 +1723,22 @@ def selftest(records):
                             scatter_net={"value": None, "ci95": None})
 
     accepted = {  # label: valid variant; every record must pass
+        "v0.4 export of the WidowX entries (disagree_scatter; not_yet_calibrated)": v04(),
+        "v0: a separate-rule AGREE (bias interval and scatter each within δ)": lambda recs: recs[graded].update(
+            verdict="agree", **copy.deepcopy(v0_agree)),
+        "v0.4: the same inputs are inconclusive": v04(graded, verdict="inconclusive", non_floor=v0_agree_nf,
+                                                     **copy.deepcopy(v0_agree)),
+        "v0.4: AGREE over all cells and the non-FLOOR cells": v04(
+            graded, verdict="agree", bias={"value": 0.0, "ci95": [-0.05, 0.05], "ci95_clustered": None},
+            scatter_net={"value": 0.0, "ci95": [0.0, 0.05]},
+            non_floor={"n_cells": 14, "bias": {"value": 0.0, "ci95": [-0.06, 0.06]},
+                       "scatter_net": {"value": 0.0, "ci95": [0.0, 0.08]}}),
+        "v0.4: disagree_unresolved": v04(graded, verdict="disagree_unresolved",
+                                         bias={"value": 0.2, "ci95": [0.15, 0.25], "ci95_clustered": None},
+                                         scatter_net={"value": 0.1, "ci95": [0.06, 0.2]}),
+        "v0.4: not_determined without a scatter interval": v04(
+            graded, verdict="not_determined",
+            verdict_possible=["disagree_scatter", "disagree_unresolved", "inconclusive"], **no_interval),
         "complete twin calibration": complete()[1],
         "customer plan on a calibrated twin": link_plan("customer_final"),
         "customer plan on an uncalibrated twin, no verdict reported": customer_not_reported,
@@ -1478,6 +1765,11 @@ def selftest(records):
         "v0.2 real rerun": lambda recs: (v02(lost1, None)(recs), recs[lost1].update(
             simulated=False, synthetic=False,
             real_rerun={"random_holdout": True, "setup_seconds": 40.0, "initial_poses": None})),
+        "v0.3 export with the example's seeds": v03(lost1),
+        "v0.3 export with the example's seeds and seedless false": v03(lost1, seedless=False),
+        "v0.3 seedless generator": v03(lost1, seeds={}, seedless=True, constraints_sha256=None),
+        "v0.3 record from a stored scenario (no generator)": lambda recs: (v03(lost1)(recs), recs[lost1].update(
+            generator=None)),
         "pnp failure with no contact": pnp("none"),
         "pnp failure after touch": pnp("touch"),
         "pnp failure after lift": pnp("lift"),
